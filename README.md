@@ -11,7 +11,7 @@ BiliNook 是 Windows 桌面 App，集中顯示你關注的 Bilibili 創作者動
 亦可明確指定隔離資料目錄：
 
 ```powershell
-& '.\dist\BiliNook.exe' --data-dir '.\.local\試用資料'
+& '.\BiliNook.exe' --data-dir '.\試用資料'
 ```
 
 `BILI_DATA_DIR` 也可覆寫預設位置，`--data-dir` 的優先順序最高。`--print-data-dir` 只印出目錄後退出，不讀寫存檔。單例鎖依資料目錄識別；重複開啟相同目錄會喚醒既有視窗。
