@@ -1,0 +1,28 @@
+#include <winver.h>
+#define APP_NAME "BiliNook"
+#define STRINGIFY_VALUE(value) #value
+#define STRINGIFY(value) STRINGIFY_VALUE(value)
+
+1 VERSIONINFO
+FILEVERSION FILE_VERSION
+PRODUCTVERSION FILE_VERSION
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", APP_NAME
+            VALUE "FileVersion", STRINGIFY(DISPLAY_VERSION)
+            VALUE "InternalName", APP_NAME
+            VALUE "OriginalFilename", "BiliNook.exe"
+            VALUE "ProductName", APP_NAME
+            VALUE "ProductVersion", STRINGIFY(DISPLAY_VERSION)
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

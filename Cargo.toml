@@ -1,0 +1,38 @@
+[workspace]
+members = ["crates/bili-core", "crates/bili-gpui"]
+default-members = ["crates/bili-gpui"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+
+[workspace.dependencies]
+anyhow = "1"
+async-channel = "2"
+dirs = "6"
+futures = "0.3"
+fs2 = "0.4"
+lru = "0.16"
+md5 = "0.8"
+percent-encoding = "2"
+reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls", "gzip", "brotli", "cookies", "socks", "system-proxy"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+url = "2"
+gpui = { package = "gpui-kit", version = "=0.9.0" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+open = "5"
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+strip = "symbols"
+

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASCII Spinners &amp; Panel Switch</title>
+<style>
+  body {
+    margin: 24px auto; max-width: 880px; padding: 0 16px;
+    font-family: system-ui, sans-serif; background: #f2f3f6; color: #222;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .viz-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 4px; }
+  .btn {
+    display: inline-flex; align-items: center; padding: 4px 14px;
+    border: 1px solid #c6c9cf; border-radius: 6px; background: #fff;
+    cursor: pointer; font-size: 13px;
+  }
+  .btn:hover { background: #eceef2; }
+  .text-small { font-size: 12px; }
+  .text-muted { color: #667; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  .term { border-radius: 8px; overflow: hidden; border: 1px solid rgba(128, 128, 128, 0.28); }
+  .term-sp { background: #05060a; }
+  .term-sw { background: #060913; }
+  .term-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px; background: rgba(255, 255, 255, 0.045);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .d1 { background: #ff5f57; } .d2 { background: #febc2e; } .d3 { background: #28c840; }
+  .term-name { margin-left: 6px; font-size: 12px; font-weight: 500; color: #cfd8d0; }
+  .term-spec { margin-left: auto; font-size: 11px; color: rgba(220, 230, 220, 0.5); }
+  .term-body { container-type: inline-size; padding: 8px 10px; }
+  pre {
+    margin: 0; white-space: pre; overflow: hidden;
+    font-family: "Cascadia Mono", Consolas, "JetBrains Mono", "Courier New", monospace;
+    line-height: 1.3; letter-spacing: 0;
+    font-size: calc((100cqw - 20px) / 78 / 0.62);
+  }
+  .term-sp pre { color: #ffd166; }
+  .term-sw pre { color: #cfe2ff; }
+  .lbl { color: #6b7488; }
+  .dim { color: #5a6472; }
+  .spch { color: #ffe08a; text-shadow: 0 0 6px rgba(255, 200, 90, 0.6); }
+  .swh { color: #ffffff; text-shadow: 0 0 6px rgba(140, 190, 255, 0.7); }
+  .swipe { color: #ffffff; text-shadow: 0 0 8px rgba(126, 224, 255, 0.95); }
+  .aum-status {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 11px; color: #7a86a8; margin-top: 6px; white-space: pre;
+  }
+</style>
+</head>
+<body>
+
+<div class="viz-controls">
+  <button id="aum-toggle" type="button" class="btn">暫停</button>
+  <span class="text-small text-muted">spinners 與 panel switch 動畫；系統開啟「減少動態」時停在靜態海報幀</span>
+</div>
+
+<div class="term term-sp">
+  <div class="term-bar">
+    <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+    <span class="term-name">spinners ─ 不確定進度（加載中）</span>
+    <span class="term-spec">5 styles · 6–10 fps · TTY 單行刷新</span>
+  </div>
+  <div class="term-body">
+    <pre id="aum-sp" aria-hidden="true"></pre>
+    <div class="sr-only">五種 spinner 樣式同時運轉：classic、star、orb、braille 與往返式 pong bar。</div>
+  </div>
+</div>
+
+<div class="term term-sw">
+  <div class="term-bar">
+    <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+    <span class="term-name">panel switch ─ 畫面切換轠場</span>
+    <span class="term-spec">wipe / dissolve · hold 2.6s</span>
+  </div>
+  <div class="term-body">
+    <pre id="aum-sw" aria-hidden="true"></pre>
+    <div class="aum-status" id="aum-sws" aria-hidden="true"></div>
+    <div class="sr-only">三個終端畫面自動循環，交替使用擦除與溶解兩種轠場。</div>
+  </div>
+</div>
+
+<p class="text-small text-muted">終端守則：TTY 用 \r 單行覆寫刷新；非 TTY（重導向、CI log）降級為逐行 log（可 grep、不覆寫）；動畫輸出與一般 log 分流，隨時 Ctrl+C 結束。</p>
+
+<script>
+(function () {
+  var W = 78;
+  var paused = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var btn = document.getElementById('aum-toggle');
+  function setBtn() { btn.textContent = paused ? '播放' : '暫停'; }
+  btn.addEventListener('click', function () { paused = !paused; setBtn(); });
+  setBtn();
+  var t0 = performance.now();
+
+  function pad(s, n) { s = String(s); while (s.length < n) s += ' '; return s; }
+  function padL(s, n) { s = String(s); while (s.length < n) s = ' ' + s; return s; }
+  function rep(ch, n) { var o = ''; while (o.length < n) o += ch; return o.slice(0, n); }
+
+  /* ---- spinners ---- */
+  var SP = [
+    { label: 'classic', text: 'loading',   fps: 8,  fr: ['|', '/', '-', '\\'] },
+    { label: 'star',    text: 'syncing',   fps: 6,  fr: ['+', 'x', '*'] },
+    { label: 'orb',     text: 'fetching',  fps: 6,  fr: ['.', 'o', 'O', '@'] },
+    { label: 'braille', text: 'rendering', fps: 10, fr: ['\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'] },
+    { label: 'pong',    text: 'moving',    fps: 12, fr: null }
+  ];
+  var spIdx = [0, 0, 0, 0, 0];
+  function spTick(now) {
+    var lines = [];
+    for (var i = 0; i < SP.length; i++) {
+      var s = SP[i], ch;
+      if (s.fr) {
+        ch = s.fr[spIdx[i] % s.fr.length];
+        spIdx[i]++;
+      } else {
+        var ph = (now / 1000) * 0.9, tri = ph % 2; if (tri > 1) tri = 2 - tri;
+        var pos = Math.round(tri * 10);
+        ch = pad('[' + rep(' ', pos) + '=' + rep(' ', 10 - pos) + ']', 12);
+      }
+      var el = ((now - t0) / 1000).toFixed(1) + 's';
+      lines.push('<span class="lbl">' + pad(s.label, 10) + '</span>' +
+        '<span class="spch">' + ch + '</span>' + '  ' +
+        pad(s.text, 10) + '<span class="dim">' + padL(el, 6) + '</span>');
+    }
+    return lines.join('\n');
+  }
+
+  /* ---- panel switch ---- */
+  var SWH = 12;
+  function swScreen(title, rows) {
+    var g = [];
+    for (var r = 0; r < SWH; r++) g.push(new Array(W).fill(' '));
+    var head = '== ' + title + ' ' + rep('=', Math.max(0, W - title.length - 7));
+    for (var c = 0; c < W; c++) g[2][c] = head[c] || ' ';
+    for (var i = 0; i < rows.length; i++) {
+      for (var c2 = 0; c2 < rows[i].length && c2 < W; c2++) g[4 + i][c2] = rows[i][c2];
+    }
+    return g;
+  }
+  var swScreens = [
+    swScreen('MAIN MENU', ['[1] browse projects', '[2] settings', '[3] logs', '[q] quit']),
+    swScreen('SETTINGS', ['theme  : dark', 'lang   : zh-TW', 'editor : vim', 'status : saved']),
+    swScreen('LOGS (tail -f)', ['09:12:01 boot ok', '09:12:03 api: 200 GET /health', '09:12:07 worker: job #42 done'])
+  ];
+  var swNames = ['MAIN MENU', 'SETTINGS', 'LOGS'];
+  var swKinds = ['wipeF', 'diss', 'wipeB'];
+  var HOLD = 2600, WIPE = 850, DISS = 1150;
+  var sw = { phase: 'hold', t0: t0, idx: 0, thresh: null };
+  function swMakeThresh() {
+    var t = [];
+    for (var r = 0; r < SWH; r++) {
+      t.push([]);
+      for (var c = 0; c < W; c++) t[r].push(Math.random());
+    }
+    return t;
+  }
+  function gridToStr(g, brightHead) {
+    var out = [];
+    for (var r = 0; r < SWH; r++) {
+      var line = g[r].join('');
+      if (brightHead && r === 2) out.push('<span class="swh">' + line + '</span>');
+      else out.push(line);
+    }
+    return out.join('\n');
+  }
+  function swTick(now) {
+    var el = now - sw.t0, html, status;
+    if (sw.phase === 'hold') {
+      html = gridToStr(swScreens[sw.idx], true);
+      status = '[hold] ' + (sw.idx + 1) + '/3 ' + swNames[sw.idx] +
+        '   下一幕轠場: ' + ({ wipeF: 'wipe →', diss: 'dissolve', wipeB: '← wipe' })[swKinds[sw.idx]];
+      if (el >= HOLD) {
+        sw.phase = swKinds[sw.idx]; sw.t0 = now;
+        if (sw.phase === 'diss') sw.thresh = swMakeThresh();
+      }
+    } else {
+      var to = swScreens[(sw.idx + 1) % 3], from = swScreens[sw.idx];
+      if (sw.phase === 'wipeF' || sw.phase === 'wipeB') {
+        var p = Math.min(1, el / WIPE), b = Math.round(p * W);
+        var rows = [];
+        for (var r = 0; r < SWH; r++) {
+          var fS = from[r].join(''), tS = to[r].join('');
+          var headSpan = r === 2 ? ['<span class="swh">', '</span>'] : ['', ''];
+          var line;
+          if (sw.phase === 'wipeF') {
+            line = (r === 2 ? headSpan[0] + tS.slice(0, b) + headSpan[1] : tS.slice(0, b)) +
+              '<span class="swipe">|</span>' + fS.slice(b);
+          } else {
+            line = fS.slice(0, W - b) + '<span class="swipe">|</span>' +
+              (r === 2 ? headSpan[0] + tS.slice(W - b) + headSpan[1] : tS.slice(W - b));
+          }
+          rows.push(line);
+        }
+        html = rows.join('\n');
+        status = '[切換] wipe ' + (sw.phase === 'wipeF' ? '→' : '←') + '  ' + Math.floor(p * 100) + '%';
+        if (p >= 1) { sw.idx = (sw.idx + 1) % 3; sw.phase = 'hold'; sw.t0 = now; }
+      } else {
+        var p2 = Math.min(1, el / DISS);
+        var g = [];
+        for (var r2 = 0; r2 < SWH; r2++) {
+          g.push([]);
+          for (var c = 0; c < W; c++) {
+            g[r2].push(sw.thresh[r2][c] <= p2 ? to[r2][c] : from[r2][c]);
+          }
+        }
+        html = gridToStr(g, false);
+        status = '[切換] dissolve  ' + Math.floor(p2 * 100) + '%';
+        if (p2 >= 1) { sw.idx = (sw.idx + 1) % 3; sw.phase = 'hold'; sw.t0 = now; }
+      }
+    }
+    document.getElementById('aum-sws').textContent = status;
+    return html;
+  }
+
+  var anims = [
+    { pre: document.getElementById('aum-sp'), fps: 10, tick: spTick },
+    { pre: document.getElementById('aum-sw'), fps: 0, every: true, tick: swTick }
+  ];
+  for (var a = 0; a < anims.length; a++) {
+    anims[a].pre.innerHTML = anims[a].tick(performance.now());
+  }
+  var last = performance.now();
+  function loop(now) {
+    var dt = (now - last) / 1000;
+    last = now;
+    if (!paused) {
+      for (var i = 0; i < anims.length; i++) {
+        if (anims[i].every) { anims[i].pre.innerHTML = anims[i].tick(now); continue; }
+        if (anims[i].acc === undefined) anims[i].acc = 0;
+        anims[i].acc += dt;
+        if (anims[i].acc >= 1 / anims[i].fps) {
+          anims[i].acc = 0;
+          anims[i].pre.innerHTML = anims[i].tick(now);
+        }
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
