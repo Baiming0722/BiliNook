@@ -1,0 +1,17 @@
+/target/
+/.cargo-home/
+/.local/
+/dist/
+/.env
+/.env.*
+!/.env.example
+/*backup*.json
+/*備份*.json
+/ups.json
+/settings.json
+/state.json
+/live-watch.json
+/read-dynamics.json
+/cache/
+*.log
+
